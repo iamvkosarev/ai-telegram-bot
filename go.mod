@@ -1,6 +1,6 @@
-module github.com/leafduo/chatgpt-telegram-bot
+module github.com/iamvkosarev/chatgpt-telegram-bot
 
-go 1.20
+go 1.24
 
 require (
 	github.com/caarlos0/env/v7 v7.1.0

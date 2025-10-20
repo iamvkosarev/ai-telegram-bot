@@ -1,18 +1,21 @@
-package main
+package usecase
 
 import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/iamvkosarev/chatgpt-telegram-bot/config"
+	openai_tools "github.com/iamvkosarev/chatgpt-telegram-bot/pkg/openai-tools"
 	"io"
 	"log"
 	"time"
 
-	openai "github.com/sashabaranov/go-openai"
+	"github.com/sashabaranov/go-openai"
 )
 
 type GPT struct {
 	userState map[int64]*UserState
+	cfg       config.GPT
 }
 
 type UserState struct {
@@ -21,11 +24,7 @@ type UserState struct {
 	HistoryMessage []openai.ChatCompletionMessage
 }
 
-func NewGPT() *GPT {
-	gpt := &GPT{
-		userState: make(map[int64]*UserState),
-	}
-
+func NewGPTUsecase(cfg config.GPT) *GPT {
 	// TODO: notify expired conversations
 	// // check user context expiration every 5 seconds
 	// go func() {
@@ -43,8 +42,10 @@ func NewGPT() *GPT {
 	// 		time.Sleep(5 * time.Second)
 	// 	}
 	// }()
-
-	return gpt
+	return &GPT{
+		cfg:       cfg,
+		userState: make(map[int64]*UserState),
+	}
 }
 
 func (gpt *GPT) SendMessage(userID int64, msg string, answerChan chan<- string) (bool, error) {
@@ -60,10 +61,12 @@ func (gpt *GPT) SendMessage(userID int64, msg string, answerChan chan<- string) 
 
 	user := gpt.userState[userID]
 
-	user.HistoryMessage = append(user.HistoryMessage, openai.ChatCompletionMessage{
-		Role:    "user",
-		Content: msg,
-	})
+	user.HistoryMessage = append(
+		user.HistoryMessage, openai.ChatCompletionMessage{
+			Role:    "user",
+			Content: msg,
+		},
+	)
 	user.LastActiveTime = time.Now()
 
 	trimHistory := func() {
@@ -71,7 +74,7 @@ func (gpt *GPT) SendMessage(userID int64, msg string, answerChan chan<- string) 
 		fmt.Println("History trimmed due to token limit")
 	}
 	for len(user.HistoryMessage) > 0 {
-		tokenCount, err := CountToken(user.HistoryMessage, cfg.OPENAIModel)
+		tokenCount, err := openai_tools.CountToken(user.HistoryMessage, gpt.cfg.OPENAIModel)
 		if err != nil {
 			fmt.Println("count token error:", err)
 
@@ -86,14 +89,14 @@ func (gpt *GPT) SendMessage(userID int64, msg string, answerChan chan<- string) 
 		trimHistory()
 	}
 
-	clientConfig := openai.DefaultConfig(cfg.OpenAIAPIKey)
-	clientConfig.BaseURL = cfg.OpenAIBaseURL
+	clientConfig := openai.DefaultConfig(gpt.cfg.OpenAIAPIKey)
+	clientConfig.BaseURL = gpt.cfg.OpenAIBaseURL
 	c := openai.NewClientWithConfig(clientConfig)
 	ctx := context.Background()
 
 	req := openai.ChatCompletionRequest{
-		Model:       cfg.OPENAIModel,
-		Temperature: cfg.ModelTemperature,
+		Model:       gpt.cfg.OPENAIModel,
+		Temperature: gpt.cfg.ModelTemperature,
 		TopP:        1,
 		N:           1,
 		// PresencePenalty:  0.2,
@@ -129,10 +132,12 @@ func (gpt *GPT) SendMessage(userID int64, msg string, answerChan chan<- string) 
 		answerChan <- currentAnswer
 	}
 
-	user.HistoryMessage = append(user.HistoryMessage, openai.ChatCompletionMessage{
-		Role:    "assistant",
-		Content: currentAnswer,
-	})
+	user.HistoryMessage = append(
+		user.HistoryMessage, openai.ChatCompletionMessage{
+			Role:    "assistant",
+			Content: currentAnswer,
+		},
+	)
 
 	return false, nil
 }
@@ -140,7 +145,7 @@ func (gpt *GPT) SendMessage(userID int64, msg string, answerChan chan<- string) 
 func (gpt *GPT) clearUserContextIfExpires(userID int64) bool {
 	user := gpt.userState[userID]
 	if user != nil &&
-		user.LastActiveTime.Add(time.Duration(cfg.ConversationIdleTimeoutSeconds)*time.Second).Before(time.Now()) {
+		user.LastActiveTime.Add(gpt.cfg.ConversationIdleTimeout).Before(time.Now()) {
 		gpt.ResetUser(userID)
 		return true
 	}

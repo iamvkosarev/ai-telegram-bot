@@ -1,4 +1,4 @@
-package main
+package openai_tools
 
 import (
 	"fmt"

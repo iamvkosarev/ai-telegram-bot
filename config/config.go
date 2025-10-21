@@ -13,9 +13,12 @@ type OpenAI struct {
 }
 
 type Telegram struct {
-	TelegramAPIToken                    string  `env:"TELEGRAM_APITOKEN,required"`
-	AllowedTelegramID                   []int64 `env:"ALLOWED_TELEGRAM_ID" envSeparator:","`
-	NotifyUserOnConversationIdleTimeout bool    `yaml:"notify_user_on_conversation_idle_timeout" envDefault:"false"`
+	TelegramAPIToken                    string   `env:"TELEGRAM_APITOKEN,required"`
+	NotifyUserOnConversationIdleTimeout bool     `yaml:"notify_user_on_conversation_idle_timeout"`
+	AdminTelegramIDList                 []int64  `env:"ADMIN_TELEGRAM_ID_LIST" envSeparator:","`
+	PremiumTelegramIDList               []int64  `env:"PREMIUM_TELEGRAM_ID_LIST" envSeparator:","`
+	IsNotPublic                         bool     `yaml:"is_not_public" `
+	AvailableForRoles                   []string `yaml:"available_for_roles" `
 }
 
 type Config struct {

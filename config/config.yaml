@@ -3,3 +3,5 @@ open_ai:
   conversation_idle_timeout_seconds: 5m
 telegram:
   notify_user_on_conversation_idle_timeout: false
+  is_not_public: true
+  available_for_roles: [ "admin", "premium" ]

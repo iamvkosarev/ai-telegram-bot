@@ -5,12 +5,11 @@ import (
 	"time"
 )
 
-type GPT struct {
+type OpenAI struct {
 	OpenAIAPIKey            string        `env:"OPENAI_API_KEY,required"`
-	OPENAIModel             string        `yaml:"openai_model" env:"OPENAI_MODEL"`
 	OpenAIBaseURL           string        `yaml:"open_ai_base_url" env:"OPENAI_BASE_URL"`
-	ModelTemperature        float32       `yaml:"model_temperature" env:"MODEL_TEMPERATURE"`
 	ConversationIdleTimeout time.Duration `yaml:"conversation_idle_timeout_seconds"`
+	StdModel                string        `env:"OPENAI_STD_MODEL" envDefault:"gpt-3.5-turbo"`
 }
 
 type Telegram struct {
@@ -20,7 +19,7 @@ type Telegram struct {
 }
 
 type Config struct {
-	GPT      GPT      `yaml:"gpt"`
+	OpenAI   OpenAI   `yaml:"open_ai"`
 	Telegram Telegram `yaml:"telegram"`
 }
 

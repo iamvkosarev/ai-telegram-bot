@@ -1,7 +1,5 @@
-gpt:
-  openai_model: "gpt-3.5-turbo"
+open_ai:
   open_ai_base_url: "https://api.openai.com"
-  model_temperature: 0
   conversation_idle_timeout_seconds: 5m
 telegram:
   notify_user_on_conversation_idle_timeout: false

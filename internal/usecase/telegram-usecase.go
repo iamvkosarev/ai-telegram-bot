@@ -160,6 +160,11 @@ func (t *TelegramUsecase) handleCallbackQuery(update api.Update) error {
 		return fmt.Errorf("failed to create new AI chat: %w", err)
 	}
 	t.sendMessageAndHandleErr(chatID, fmt.Sprintf(MessageSelectedModelFormat, data))
+
+	_, err = t.Bot.Request(api.NewDeleteMessage(chatID, update.CallbackQuery.Message.MessageID))
+	if err != nil {
+		return fmt.Errorf("failed to delete callback query: %w", err)
+	}
 	return nil
 }
 

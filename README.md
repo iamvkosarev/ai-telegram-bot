@@ -12,41 +12,26 @@ Run your own ChatGPT Telegram bot!
 
    Create a bot from Telegram [@BotFather](https://t.me/BotFather) and obtain an access token.
 
-3. Install using `go install`
-
-   If you have a Go environment, you can install it with the following command:
-
+3. Clone repository
 ```bash
-go install github.com/leafduo/chatgpt-telegram-bot@latest
+git clone git@github.com:iamvkosarev/chatgpt-telegram-bot.git
 ```
 
-4. Install using binary
+4. Create your own `.env` file
 
-   You can get prebuilt binaries from [GitHub Releases](https://github.com/leafduo/chatgpt-telegram-bot/releases) and put it in `$PATH`
+   Example : 
+  ```env
+OPENAI_API_KEY=<your_openai_api_key>
+TELEGRAM_APITOKEN=<your_telegram_bot_token>
 
-5. Install using Docker-compose
+; Optional, default is empty. Only allow these users to use the bot with Admin role.
+; ADMIN_TELEGRAM_ID_LIST=<your_telegram_id>,<your_friend_telegram_id>
 
-   Check out [docker-compose.yml](docker-compose.yml) for sample config
-
-6. Set the environment variables and run
+; Optional, default is empty. Only allow these users to use the bot with Premium role.
+; PREMIUM_TELEGRAM_ID_LIST=<your_telegram_id>,<your_friend_telegram_id>
+```
+5. Run an application
 
 ```bash
-export OPENAI_API_KEY=<your_openai_api_key>
-export TELEGRAM_APITOKEN=<your_telegram_bot_token>
-# Optional, default is empty. Only allow these users to use the bot. Empty means allow all users.
-export ALLOWED_TELEGRAM_ID=<your_telegram_id>,<your_friend_telegram_id>
-# Optional, default is 1.0. Higher temperature means more random responses.
-# See https://platform.openai.com/docs/api-reference/chat/create#chat/create-temperature
-export MODEL_TEMPERATURE=1.0
-# Optional, default is 900. Max idle duration for a certain conversation.
-# After this duration, a new conversation will be started.
-export CONVERSATION_IDLE_TIMEOUT_SECONDS=900
-# Optional, defaults to gpt-3.5-turbo. Specify which model to use.
-# Currently, only `gpt-3.5-turbo` and `gpt-4` are supported.
-export OPENAI_MODEL=gpt-3.5-turbo
-# Optional, defaults to https://api.openai.com.
-# You can use this to set a custom OpenAI API endpoint to use third party relay services like https://api2d.com/.
-export OPENAI_BASE_URL=https://api.openai.com
-
-chatgpt-telegram-bot
+ go run ./cmd/main.go
 ```

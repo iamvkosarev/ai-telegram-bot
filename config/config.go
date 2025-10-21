@@ -5,11 +5,20 @@ import (
 	"time"
 )
 
+type AccessModelsPerRole struct {
+	Role   string   `yaml:"role"`
+	Models []string `yaml:"models"`
+}
+
 type OpenAI struct {
 	OpenAIAPIKey            string        `env:"OPENAI_API_KEY,required"`
 	OpenAIBaseURL           string        `yaml:"open_ai_base_url" env:"OPENAI_BASE_URL"`
 	ConversationIdleTimeout time.Duration `yaml:"conversation_idle_timeout_seconds"`
 	StdModel                string        `env:"OPENAI_STD_MODEL" envDefault:"gpt-3.5-turbo"`
+}
+
+type AIChat struct {
+	AccessModelsPerRoles []AccessModelsPerRole `yaml:"models_per_user_roles"`
 }
 
 type Telegram struct {
@@ -24,6 +33,7 @@ type Telegram struct {
 type Config struct {
 	OpenAI   OpenAI   `yaml:"open_ai"`
 	Telegram Telegram `yaml:"telegram"`
+	AIChat   AIChat   `yaml:"ai_chat"`
 }
 
 func LoadConfig(cfgPath string) (*Config, error) {

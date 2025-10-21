@@ -9,6 +9,7 @@ import (
 	"github.com/iamvkosarev/chatgpt-telegram-bot/internal/model"
 	"github.com/sourcegraph/conc"
 	"log"
+	"math"
 	"sort"
 	"strings"
 	"time"
@@ -19,19 +20,27 @@ const (
 	MessageFailedToSaveMessageError = "Failed to save your message. Try later"
 	MessageContextTrimmed           = "Context was trimmed"
 	MessageUserNoAccess             = "You are not allowed to use this bot"
+	MessageUserNoAccessToChat       = "You are not allowed to use this chat"
 	MessageUserModelNoAccess        = "You are not allowed to use this model"
 	MessageCommandStart             = "Welcome to ChatGPT bot! Write something to start a conversation. Use /new to clear context and start a new conversation."
 	MessageCommandHelp              = "Write something to start a conversation. Use /new to clear context and start a new conversation."
 	MessageCommandUnknown           = "I don't know that command"
 	MessageSelectModel              = "Select model to create new chat"
+	MessageSelectChat               = "Select chat to continue dialog"
 	MessageHaveNoAvailableModels    = "You dont have any available models"
 	MessageSelectedModelFormat      = "Started new chat with %s model"
+	MessageSelectedChatFormat       = "Continue to chat with %s model"
 	MessageFailedToGetChats         = "Failed to get all your chats"
+	MessageHaveNoChats              = "You dont have any chats"
 
-	CommandStart = "start"
-	CommandHelp  = "help"
-	CommandNew   = "new"
-	CommandChats = "chats"
+	CommandStart      = "start"
+	CommandHelp       = "help"
+	CommandNew        = "new"
+	CommandChats      = "chats"
+	CommandSelectChat = "select_chat"
+
+	CallbackQueryPrefixChat  = "chat_"
+	CallbackQueryPrefixModel = "model_"
 )
 
 var (
@@ -88,6 +97,10 @@ func NewTelegramUsecase(cfg config.Telegram, deps TelegramUsecaseDeps) (*Telegra
 					Command:     CommandChats,
 					Description: "Show chats",
 				},
+				{
+					Command:     CommandSelectChat,
+					Description: "Select chat for dialog",
+				},
 			}...,
 		),
 	)
@@ -133,9 +146,22 @@ func (t *TelegramUsecase) Run() error {
 }
 
 func (t *TelegramUsecase) handleCallbackQuery(update api.Update) error {
+	data := update.CallbackQuery.Data
+
+	switch {
+	case strings.HasPrefix(data, CallbackQueryPrefixModel):
+		return t.handleCallbackSelectModel(update)
+	case strings.HasPrefix(data, CallbackQueryPrefixChat):
+		return t.handleCallbackSelectChat(update)
+	}
+	return nil
+}
+
+func (t *TelegramUsecase) handleCallbackSelectModel(update api.Update) error {
 	chatID := update.CallbackQuery.Message.Chat.ID
 	callbackQueryID := update.CallbackQuery.ID
 	data := update.CallbackQuery.Data
+
 	callback := api.NewCallback(callbackQueryID, data)
 	if _, err := t.Bot.Request(callback); err != nil {
 		return fmt.Errorf("failed to request callback: %w", err)
@@ -151,15 +177,64 @@ func (t *TelegramUsecase) handleCallbackQuery(update api.Update) error {
 		t.sendMessageAndHandleErr(chatID, MessageHaveNoAvailableModels)
 		return fmt.Errorf("failed to get user models: %w", ErrUserRoleHasNotAnyAvailableModels)
 	}
-	if _, ok := aiModelsMap[data]; !ok {
+
+	aiModel := strings.TrimPrefix(data, CallbackQueryPrefixModel)
+
+	if _, ok := aiModelsMap[aiModel]; !ok {
 		t.sendMessageAndHandleErr(chatID, MessageUserModelNoAccess)
 		return nil
 	}
-	if _, err = t.createNewAIChat(user, chatID, data); err != nil {
+	if _, err = t.createNewAIChat(user, chatID, aiModel); err != nil {
 		t.sendMessageAndHandleErr(chatID, MessageFailedToSaveMessageError)
 		return fmt.Errorf("failed to create new AI chat: %w", err)
 	}
-	t.sendMessageAndHandleErr(chatID, fmt.Sprintf(MessageSelectedModelFormat, data))
+	t.sendMessageAndHandleErr(chatID, fmt.Sprintf(MessageSelectedModelFormat, aiModel))
+
+	_, err = t.Bot.Request(api.NewDeleteMessage(chatID, update.CallbackQuery.Message.MessageID))
+	if err != nil {
+		return fmt.Errorf("failed to delete callback query: %w", err)
+	}
+	return nil
+}
+func (t *TelegramUsecase) handleCallbackSelectChat(update api.Update) error {
+	chatID := update.CallbackQuery.Message.Chat.ID
+	callbackQueryID := update.CallbackQuery.ID
+	data := update.CallbackQuery.Data
+
+	callback := api.NewCallback(callbackQueryID, data)
+	if _, err := t.Bot.Request(callback); err != nil {
+		return fmt.Errorf("failed to request callback: %w", err)
+	}
+
+	user, err := t.User.GetUserInfoForTelegramUser(chatID)
+	if err != nil {
+		t.sendMessageAndHandleErr(chatID, MessageServerError)
+		return fmt.Errorf("failed to get user info for telegram user: %w", err)
+	}
+	chatIDToSelectStr := strings.TrimPrefix(data, CallbackQueryPrefixChat)
+
+	chatIDToSelect, err := uuid.Parse(chatIDToSelectStr)
+	if err != nil {
+		t.sendMessageAndHandleErr(chatID, MessageServerError)
+		return fmt.Errorf("failed to parse chat ID: %w", err)
+	}
+
+	chat, err := t.AIChat.GetChat(chatIDToSelect)
+	if err != nil {
+		t.sendMessageAndHandleErr(chatID, MessageServerError)
+		return fmt.Errorf("failed to get chat: %w", err)
+	}
+	if chat.UserID != user.UserID {
+		t.sendMessageAndHandleErr(chatID, MessageUserNoAccessToChat)
+		return nil
+	}
+
+	if err = t.User.UpdateUserLastAIChat(user.UserID, chatIDToSelect); err != nil {
+		t.sendMessageAndHandleErr(chatID, MessageServerError)
+		return fmt.Errorf("failed to update user last AI chat: %w", err)
+	}
+
+	t.sendMessageAndHandleErr(chatID, fmt.Sprintf(MessageSelectedChatFormat, chat.Model))
 
 	_, err = t.Bot.Request(api.NewDeleteMessage(chatID, update.CallbackQuery.Message.MessageID))
 	if err != nil {
@@ -200,6 +275,11 @@ func (t *TelegramUsecase) handleMessage(update api.Update) error {
 		case CommandNew:
 			if err = t.sendSelectModelsKeyboard(user, chatID); err != nil {
 				return fmt.Errorf("failed to send select models keyboard: %w", err)
+			}
+			return nil
+		case CommandSelectChat:
+			if err = t.sendSelectChatKeyboard(user.UserID, chatID); err != nil {
+				return fmt.Errorf("failed to send select chat keyboard: %w", err)
 			}
 			return nil
 		default:
@@ -349,9 +429,44 @@ func (t *TelegramUsecase) sendSelectModelsKeyboard(user model.User, chatID int64
 			inlineRows = append(inlineRows, inlineButtons)
 			inlineButtons = make([]api.InlineKeyboardButton, 0)
 		}
-		inlineButtons = append(inlineButtons, api.NewInlineKeyboardButtonData(aiModel, aiModel))
+
+		modelWithPrefix := fmt.Sprintf("%s%s", CallbackQueryPrefixModel, aiModel)
+		inlineButtons = append(inlineButtons, api.NewInlineKeyboardButtonData(aiModel, modelWithPrefix))
 	}
 	inlineRows = append(inlineRows, inlineButtons)
+	msg.ReplyMarkup = api.NewInlineKeyboardMarkup(inlineRows...)
+	if _, err := t.Bot.Send(msg); err != nil {
+		return fmt.Errorf("failed to send message to bot: %w", err)
+	}
+	return nil
+}
+
+func (t *TelegramUsecase) sendSelectChatKeyboard(userID uuid.UUID, chatID int64) error {
+	chats, err := t.AIChat.ListUserChats(userID)
+	if err != nil {
+		t.sendMessageAndHandleErr(chatID, MessageServerError)
+		return fmt.Errorf("failed to get user chats: %w", err)
+	}
+	if len(chats) == 0 {
+		t.sendMessageAndHandleErr(chatID, MessageHaveNoChats)
+		return nil
+	}
+	msg := api.NewMessage(chatID, MessageSelectChat)
+	inlineRows := make([][]api.InlineKeyboardButton, 0)
+
+	const maxMessageViewLength = 20
+
+	for _, chat := range chats {
+		inlineButtons := make([]api.InlineKeyboardButton, 0)
+		messagesCount := len(chat.Messages)
+		lastMessage := chat.Messages[messagesCount-1].Body
+		length := math.Min(float64(maxMessageViewLength), float64(len(lastMessage)))
+		buttonText := fmt.Sprintf("Messages: %v, \"%v...\"", messagesCount, lastMessage[:int(length)])
+
+		chatWithPrefix := fmt.Sprintf("%s%s", CallbackQueryPrefixChat, chat.ChatID.String())
+		inlineButtons = append(inlineButtons, api.NewInlineKeyboardButtonData(buttonText, chatWithPrefix))
+		inlineRows = append(inlineRows, inlineButtons)
+	}
 	msg.ReplyMarkup = api.NewInlineKeyboardMarkup(inlineRows...)
 	if _, err := t.Bot.Send(msg); err != nil {
 		return fmt.Errorf("failed to send message to bot: %w", err)

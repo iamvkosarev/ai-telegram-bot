@@ -1,23 +1,22 @@
-FROM golang:1.20.1-alpine3.17 AS builder
+FROM golang:1.24 AS builder
 
-ENV GOPROXY=https://goproxy.cn,direct
+ENV GOOS=linux
+ENV GOARCH=amd64
+ENV CGO_ENABLED=0
 
-WORKDIR /src
+WORKDIR /app
 
-# Copy go mod and sum files
 COPY go.mod go.sum ./
-
-# Download all dependencies. Dependencies will be cached if the go.mod and the go.sum files are not changed
 RUN go mod download
 
-# Copy source code
 COPY . .
 
-# Build the Go app
-RUN go build -o /go/bin/app
+RUN go build -o bot ./cmd/main.go
 
-FROM alpine:3.17
+FROM scratch AS telegram-bot
 
-COPY --from=builder /go/bin/app /go/bin/app
+WORKDIR /
 
-CMD ["/go/bin/app"]
+COPY --from=builder /app/bot /bot
+
+ENTRYPOINT ["/bot"]

@@ -4,8 +4,9 @@ import (
 	"fmt"
 	api "github.com/OvyFlash/telegram-bot-api"
 	"github.com/iamvkosarev/chatgpt-telegram-bot/config"
-	in_memory "github.com/iamvkosarev/chatgpt-telegram-bot/internal/storage/in-memory"
+	key_value "github.com/iamvkosarev/chatgpt-telegram-bot/internal/storage/key-value"
 	"github.com/iamvkosarev/chatgpt-telegram-bot/internal/usecase"
+	"github.com/redis/go-redis/v9"
 	"log"
 	"net/url"
 )
@@ -23,9 +24,15 @@ func Run(cfg *config.Config) error {
 	}
 	log.Printf("Authorized on account %s", bot.Self.UserName)
 
+	rdb := redis.NewClient(
+		&redis.Options{
+			Addr: cfg.Redis.Endpoint,
+		},
+	)
+
 	openAIUsecase := usecase.NewOpenAIUsecase(cfg.OpenAI)
 
-	userStorage := in_memory.NewUserStorage()
+	userStorage := key_value.NewUserStorage(rdb)
 
 	userUsecase := usecase.NewUserUsecase(
 		usecase.UserUsecaseDeps{
@@ -34,7 +41,7 @@ func Run(cfg *config.Config) error {
 		cfg.Telegram,
 	)
 
-	aiChatStorage := in_memory.NewAIChatStorage()
+	aiChatStorage := key_value.NewAIChatStorage(rdb)
 
 	aiChatUsecase := usecase.NewAiChatUsecase(
 		usecase.AiChatUsecaseDeps{

@@ -30,10 +30,15 @@ type Telegram struct {
 	AvailableForRoles                   []string `yaml:"available_for_roles" `
 }
 
+type Redis struct {
+	Endpoint string `yaml:"endpoint"`
+}
+
 type Config struct {
 	OpenAI   OpenAI   `yaml:"open_ai"`
 	Telegram Telegram `yaml:"telegram"`
 	AIChat   AIChat   `yaml:"ai_chat"`
+	Redis    Redis    `yaml:"redis"`
 }
 
 func LoadConfig(cfgPath string) (*Config, error) {

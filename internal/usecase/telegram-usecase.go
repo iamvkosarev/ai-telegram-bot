@@ -1,6 +1,7 @@
 package usecase
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	api "github.com/OvyFlash/telegram-bot-api"
@@ -45,6 +46,8 @@ const (
 
 var (
 	ErrAIChatNotCreatedYet = errors.New("ai-chat not created yet")
+
+	HandleUpdateContextTimeout = time.Second * 5
 )
 
 type TelegramUsecaseDeps struct {
@@ -130,34 +133,35 @@ func (t *TelegramUsecase) Run() error {
 	updates := t.Bot.GetUpdatesChan(u)
 
 	for update := range updates {
+		ctx, cancel := context.WithTimeout(context.Background(), HandleUpdateContextTimeout)
+		defer cancel()
 		if update.Message != nil {
-			if err := t.handleMessage(update); err != nil {
-				fmt.Printf("error handling message: %v", err.Error())
+			if err := t.handleMessage(ctx, update); err != nil {
+				fmt.Printf("error handling message: %v\n", err.Error())
 			}
 		}
 		if update.CallbackQuery != nil {
-			if err := t.handleCallbackQuery(update); err != nil {
-				fmt.Printf("error handling callback Query: %v", err.Error())
+			if err := t.handleCallbackQuery(ctx, update); err != nil {
+				fmt.Printf("error handling callback Query: %v\n", err.Error())
 			}
 		}
-
 	}
 	return nil
 }
 
-func (t *TelegramUsecase) handleCallbackQuery(update api.Update) error {
+func (t *TelegramUsecase) handleCallbackQuery(ctx context.Context, update api.Update) error {
 	data := update.CallbackQuery.Data
 
 	switch {
 	case strings.HasPrefix(data, CallbackQueryPrefixModel):
-		return t.handleCallbackSelectModel(update)
+		return t.handleCallbackSelectModel(ctx, update)
 	case strings.HasPrefix(data, CallbackQueryPrefixChat):
-		return t.handleCallbackSelectChat(update)
+		return t.handleCallbackSelectChat(ctx, update)
 	}
 	return nil
 }
 
-func (t *TelegramUsecase) handleCallbackSelectModel(update api.Update) error {
+func (t *TelegramUsecase) handleCallbackSelectModel(ctx context.Context, update api.Update) error {
 	chatID := update.CallbackQuery.Message.Chat.ID
 	callbackQueryID := update.CallbackQuery.ID
 	data := update.CallbackQuery.Data
@@ -167,7 +171,7 @@ func (t *TelegramUsecase) handleCallbackSelectModel(update api.Update) error {
 		return fmt.Errorf("failed to request callback: %w", err)
 	}
 
-	user, err := t.User.GetUserInfoForTelegramUser(chatID)
+	user, err := t.User.GetUserInfoForTelegramUser(ctx, chatID)
 	if err != nil {
 		t.sendMessageAndHandleErr(chatID, MessageServerError)
 		return fmt.Errorf("failed to get user info for telegram user: %w", err)
@@ -184,10 +188,16 @@ func (t *TelegramUsecase) handleCallbackSelectModel(update api.Update) error {
 		t.sendMessageAndHandleErr(chatID, MessageUserModelNoAccess)
 		return nil
 	}
-	if _, err = t.createNewAIChat(user, chatID, aiModel); err != nil {
+	aiChat, err := t.createNewAIChat(ctx, user, chatID, aiModel)
+	if err != nil {
 		t.sendMessageAndHandleErr(chatID, MessageFailedToSaveMessageError)
 		return fmt.Errorf("failed to create new AI chat: %w", err)
 	}
+	fmt.Printf(
+		"created new ai chat (ID:%v, model%v) for user ID:%v (Telegram:%v)\n", aiChat.ChatID, aiChat.Model,
+		user.UserID,
+		chatID,
+	)
 	t.sendMessageAndHandleErr(chatID, fmt.Sprintf(MessageSelectedModelFormat, aiModel))
 
 	_, err = t.Bot.Request(api.NewDeleteMessage(chatID, update.CallbackQuery.Message.MessageID))
@@ -196,7 +206,7 @@ func (t *TelegramUsecase) handleCallbackSelectModel(update api.Update) error {
 	}
 	return nil
 }
-func (t *TelegramUsecase) handleCallbackSelectChat(update api.Update) error {
+func (t *TelegramUsecase) handleCallbackSelectChat(ctx context.Context, update api.Update) error {
 	chatID := update.CallbackQuery.Message.Chat.ID
 	callbackQueryID := update.CallbackQuery.ID
 	data := update.CallbackQuery.Data
@@ -206,7 +216,7 @@ func (t *TelegramUsecase) handleCallbackSelectChat(update api.Update) error {
 		return fmt.Errorf("failed to request callback: %w", err)
 	}
 
-	user, err := t.User.GetUserInfoForTelegramUser(chatID)
+	user, err := t.User.GetUserInfoForTelegramUser(ctx, chatID)
 	if err != nil {
 		t.sendMessageAndHandleErr(chatID, MessageServerError)
 		return fmt.Errorf("failed to get user info for telegram user: %w", err)
@@ -219,7 +229,7 @@ func (t *TelegramUsecase) handleCallbackSelectChat(update api.Update) error {
 		return fmt.Errorf("failed to parse chat ID: %w", err)
 	}
 
-	chat, err := t.AIChat.GetChat(chatIDToSelect)
+	chat, err := t.AIChat.GetChat(ctx, chatIDToSelect)
 	if err != nil {
 		t.sendMessageAndHandleErr(chatID, MessageServerError)
 		return fmt.Errorf("failed to get chat: %w", err)
@@ -229,7 +239,7 @@ func (t *TelegramUsecase) handleCallbackSelectChat(update api.Update) error {
 		return nil
 	}
 
-	if err = t.User.UpdateUserLastAIChat(user.UserID, chatIDToSelect); err != nil {
+	if err = t.User.UpdateUserLastAIChat(ctx, user.UserID, chatIDToSelect); err != nil {
 		t.sendMessageAndHandleErr(chatID, MessageServerError)
 		return fmt.Errorf("failed to update user last AI chat: %w", err)
 	}
@@ -243,7 +253,7 @@ func (t *TelegramUsecase) handleCallbackSelectChat(update api.Update) error {
 	return nil
 }
 
-func (t *TelegramUsecase) handleMessage(update api.Update) error {
+func (t *TelegramUsecase) handleMessage(ctx context.Context, update api.Update) error {
 	chatID := update.Message.Chat.ID
 
 	if t.cfg.IsNotPublic {
@@ -253,7 +263,7 @@ func (t *TelegramUsecase) handleMessage(update api.Update) error {
 		}
 	}
 
-	user, err := t.User.GetUserInfoForTelegramUser(chatID)
+	user, err := t.User.GetUserInfoForTelegramUser(ctx, chatID)
 	if err != nil {
 		t.sendMessageAndHandleErr(chatID, MessageServerError)
 		return fmt.Errorf("failed to get user info for telegram user: %w", err)
@@ -267,9 +277,10 @@ func (t *TelegramUsecase) handleMessage(update api.Update) error {
 		case CommandHelp:
 			answerText = MessageCommandHelp
 		case CommandChats:
-			chats, err := t.AIChat.ListUserChats(user.UserID)
+			chats, err := t.AIChat.ListUserChats(ctx, user.UserID)
 			if err != nil {
 				t.sendMessageAndHandleErr(chatID, MessageFailedToGetChats)
+				return fmt.Errorf("failed to get chats: %w", err)
 			}
 			answerText = prepareUsersChats(chats)
 		case CommandNew:
@@ -278,7 +289,7 @@ func (t *TelegramUsecase) handleMessage(update api.Update) error {
 			}
 			return nil
 		case CommandSelectChat:
-			if err = t.sendSelectChatKeyboard(user.UserID, chatID); err != nil {
+			if err = t.sendSelectChatKeyboard(ctx, user.UserID, chatID); err != nil {
 				return fmt.Errorf("failed to send select chat keyboard: %w", err)
 			}
 			return nil
@@ -289,7 +300,7 @@ func (t *TelegramUsecase) handleMessage(update api.Update) error {
 		return nil
 	}
 
-	aiChat, err := t.getAIChat(user, chatID)
+	aiChat, err := t.getAIChat(ctx, user, chatID)
 	if err != nil {
 		if errors.Is(err, ErrAIChatNotCreatedYet) {
 			return nil
@@ -301,7 +312,7 @@ func (t *TelegramUsecase) handleMessage(update api.Update) error {
 	throttledAnswerChan := make(chan string)
 	msgText := update.Message.Text
 
-	if err = t.AIChat.AddMessageToChat(aiChat.ChatID, msgText, model.MessageSourceUser); err != nil {
+	if err = t.AIChat.AddMessageToChat(ctx, aiChat.ChatID, msgText, model.MessageSourceUser); err != nil {
 		t.sendMessageAndHandleErr(chatID, MessageFailedToSaveMessageError)
 		return fmt.Errorf("failed to add message to ai chat: %w", err)
 	}
@@ -359,6 +370,7 @@ func (t *TelegramUsecase) handleMessage(update api.Update) error {
 					}
 					answerMsgID = answerMsg.MessageID
 					if err = t.AIChat.AddMessageToChat(
+						ctx,
 						aiChat.ChatID, currentAnswer, model.MessageSourceAssistant,
 					); err != nil {
 						log.Printf("failed to add answer to ai chat: %v\n", err)
@@ -390,11 +402,11 @@ func prepareUsersChats(chats []model.AIChat) string {
 	return result.String()
 }
 
-func (t *TelegramUsecase) getAIChat(user model.User, chatID int64) (model.AIChat, error) {
+func (t *TelegramUsecase) getAIChat(ctx context.Context, user model.User, chatID int64) (model.AIChat, error) {
 	var aiChat model.AIChat
 	var err error
 	if user.LastAIChat != uuid.Nil {
-		aiChat, err = t.AIChat.GetChat(user.LastAIChat)
+		aiChat, err = t.AIChat.GetChat(ctx, user.LastAIChat)
 		if err != nil {
 			t.sendMessageAndHandleErr(chatID, MessageServerError)
 			return model.AIChat{}, fmt.Errorf("failed to get user ai-chat: %w", err)
@@ -441,8 +453,8 @@ func (t *TelegramUsecase) sendSelectModelsKeyboard(user model.User, chatID int64
 	return nil
 }
 
-func (t *TelegramUsecase) sendSelectChatKeyboard(userID uuid.UUID, chatID int64) error {
-	chats, err := t.AIChat.ListUserChats(userID)
+func (t *TelegramUsecase) sendSelectChatKeyboard(ctx context.Context, userID uuid.UUID, chatID int64) error {
+	chats, err := t.AIChat.ListUserChats(ctx, userID)
 	if err != nil {
 		t.sendMessageAndHandleErr(chatID, MessageServerError)
 		return fmt.Errorf("failed to get user chats: %w", err)
@@ -474,13 +486,18 @@ func (t *TelegramUsecase) sendSelectChatKeyboard(userID uuid.UUID, chatID int64)
 	return nil
 }
 
-func (t *TelegramUsecase) createNewAIChat(user model.User, chatID int64, aiModel string) (model.AIChat, error) {
-	aiChat, err := t.AIChat.CreateChat(user.UserID, aiModel)
+func (t *TelegramUsecase) createNewAIChat(
+	ctx context.Context,
+	user model.User,
+	chatID int64,
+	aiModel string,
+) (model.AIChat, error) {
+	aiChat, err := t.AIChat.CreateChat(ctx, user.UserID, aiModel)
 	if err != nil {
 		t.sendMessageAndHandleErr(chatID, MessageServerError)
 		return model.AIChat{}, fmt.Errorf("failed to create user ai-chat: %w", err)
 	}
-	if err = t.User.UpdateUserLastAIChat(user.UserID, aiChat.ChatID); err != nil {
+	if err = t.User.UpdateUserLastAIChat(ctx, user.UserID, aiChat.ChatID); err != nil {
 		t.sendMessageAndHandleErr(chatID, MessageServerError)
 		return model.AIChat{}, fmt.Errorf("failed to update user last ai-chat: %w", err)
 	}

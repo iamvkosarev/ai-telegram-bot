@@ -1,6 +1,7 @@
 package usecase
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"github.com/google/uuid"
@@ -14,10 +15,13 @@ var (
 )
 
 type AiChatStorage interface {
-	GetChat(chatID uuid.UUID) (model.AIChat, error)
-	CreateChat(userID uuid.UUID, model string) (model.AIChat, error)
-	AddMessageToChat(chatID uuid.UUID, messageText string, messageSource model.MessageSource) error
-	ListUserChats(userID uuid.UUID) ([]model.AIChat, error)
+	GetChat(ctx context.Context, chatID uuid.UUID) (model.AIChat, error)
+	CreateChat(
+		ctx context.Context, userID uuid.UUID, model string,
+		temperature float32,
+	) (model.AIChat, error)
+	AddMessageToChat(ctx context.Context, chatID uuid.UUID, messageText string, messageSource model.MessageSource) error
+	ListUserChats(ctx context.Context, userID uuid.UUID) ([]model.AIChat, error)
 }
 
 type AiChatUsecaseDeps struct {
@@ -43,12 +47,12 @@ func NewAiChatUsecase(deps AiChatUsecaseDeps, cfg config.AIChat) *AiChatUsecase 
 	}
 }
 
-func (a *AiChatUsecase) GetChat(chatID uuid.UUID) (model.AIChat, error) {
-	return a.AiChatStorage.GetChat(chatID)
+func (a *AiChatUsecase) GetChat(ctx context.Context, chatID uuid.UUID) (model.AIChat, error) {
+	return a.AiChatStorage.GetChat(ctx, chatID)
 }
 
-func (a *AiChatUsecase) CreateChat(userID uuid.UUID, aiModel string) (model.AIChat, error) {
-	user, err := a.User.GetUserInfo(userID)
+func (a *AiChatUsecase) CreateChat(ctx context.Context, userID uuid.UUID, aiModel string) (model.AIChat, error) {
+	user, err := a.User.GetUserInfo(ctx, userID)
 	if err != nil {
 		return model.AIChat{}, fmt.Errorf("failed get user info: %w", err)
 	}
@@ -59,15 +63,20 @@ func (a *AiChatUsecase) CreateChat(userID uuid.UUID, aiModel string) (model.AICh
 	if _, ok := availableModels[aiModel]; !ok {
 		return model.AIChat{}, ErrUserRoleHasNotAccessToModel
 	}
-	return a.AiChatStorage.CreateChat(userID, aiModel)
+	return a.AiChatStorage.CreateChat(ctx, userID, aiModel, 1)
 }
 
-func (a *AiChatUsecase) ListUserChats(userID uuid.UUID) ([]model.AIChat, error) {
-	return a.AiChatStorage.ListUserChats(userID)
+func (a *AiChatUsecase) ListUserChats(ctx context.Context, userID uuid.UUID) ([]model.AIChat, error) {
+	return a.AiChatStorage.ListUserChats(ctx, userID)
 }
 
-func (a *AiChatUsecase) AddMessageToChat(chatID uuid.UUID, messageText string, messageSource model.MessageSource) error {
-	return a.AiChatStorage.AddMessageToChat(chatID, messageText, messageSource)
+func (a *AiChatUsecase) AddMessageToChat(
+	ctx context.Context,
+	chatID uuid.UUID,
+	messageText string,
+	messageSource model.MessageSource,
+) error {
+	return a.AiChatStorage.AddMessageToChat(ctx, chatID, messageText, messageSource)
 }
 
 func (a *AiChatUsecase) GetAvailableForUserModels(user model.User) map[string]struct{} {

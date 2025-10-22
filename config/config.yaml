@@ -1,3 +1,5 @@
+redis:
+  endpoint: "redis:6379"
 open_ai:
   open_ai_base_url: "https://api.openai.com"
   conversation_idle_timeout_seconds: 5m

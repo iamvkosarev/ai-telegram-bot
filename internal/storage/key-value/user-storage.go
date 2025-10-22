@@ -80,9 +80,12 @@ func (u *UserStorage) GetUserInfo(ctx context.Context, userID uuid.UUID) (model.
 	if err != nil {
 		return model.User{}, fmt.Errorf("failed to get user: %w", err)
 	}
-	lastAIChat, err := uuid.Parse(userInt.LastAIChat)
-	if err != nil {
-		return model.User{}, fmt.Errorf("failed to parse userID %s: %w", userID, err)
+	lastAIChat := uuid.Nil
+	if len(userInt.LastAIChat) != 0 {
+		lastAIChat, err = uuid.Parse(userInt.LastAIChat)
+		if err != nil {
+			return model.User{}, fmt.Errorf("failed to parse userID %s: %w", userID, err)
+		}
 	}
 
 	user := model.User{

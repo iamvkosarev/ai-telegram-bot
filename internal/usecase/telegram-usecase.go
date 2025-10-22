@@ -94,6 +94,23 @@ var (
 		"%s | \"%v\" | messages: %v",
 		local.NewTrans(local.Rus, "%s | \"%v\" | сообщений: %v"),
 	)
+
+	CommandHelpInfo = local.NewSet(
+		"Get help",
+		local.NewTrans(local.Rus, "Подсказка"),
+	)
+	CommandNewInfo = local.NewSet(
+		"Create new chat",
+		local.NewTrans(local.Rus, "Создать новый чат"),
+	)
+	CommandChatsInfo = local.NewSet(
+		"Show chats",
+		local.NewTrans(local.Rus, "Показать чаты"),
+	)
+	CommandSelectChatInfo = local.NewSet(
+		"Select chat to continue",
+		local.NewTrans(local.Rus, "Выбрать чат для продолжения диалога"),
+	)
 )
 
 const (
@@ -149,23 +166,51 @@ func NewTelegramUsecase(cfg config.Telegram, deps TelegramUsecaseDeps) (*Telegra
 	}
 
 	_, err := deps.Bot.Request(
-		api.NewSetMyCommands(
+		api.NewSetMyCommandsWithScopeAndLanguage(
+			api.NewBotCommandScopeDefault(), string(local.Eng),
 			[]api.BotCommand{
 				{
 					Command:     CommandHelp,
-					Description: "Get help",
+					Description: CommandHelpInfo.Default,
 				},
 				{
 					Command:     CommandNew,
-					Description: "Clear context and start a new conversation",
+					Description: CommandNewInfo.Default,
 				},
 				{
 					Command:     CommandChats,
-					Description: "Show chats",
+					Description: CommandChatsInfo.Default,
 				},
 				{
 					Command:     CommandSelectChat,
-					Description: "Select chat for dialog",
+					Description: CommandSelectChatInfo.Default,
+				},
+			}...,
+		),
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	_, err = deps.Bot.Request(
+		api.NewSetMyCommandsWithScopeAndLanguage(
+			api.NewBotCommandScopeDefault(), string(local.Rus),
+			[]api.BotCommand{
+				{
+					Command:     CommandHelp,
+					Description: CommandHelpInfo.Text(local.Rus),
+				},
+				{
+					Command:     CommandNew,
+					Description: CommandNewInfo.Text(local.Rus),
+				},
+				{
+					Command:     CommandChats,
+					Description: CommandChatsInfo.Text(local.Rus),
+				},
+				{
+					Command:     CommandSelectChat,
+					Description: CommandSelectChatInfo.Text(local.Rus),
 				},
 			}...,
 		),

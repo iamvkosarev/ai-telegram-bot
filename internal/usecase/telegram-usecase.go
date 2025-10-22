@@ -357,6 +357,7 @@ func (t *TelegramUsecase) handleMessage(update api.Update) error {
 	)
 	wg.Go(
 		func() {
+			ctx = context.Background()
 			_, err = t.Bot.Request(api.NewChatAction(chatID, api.ChatTyping))
 			if err != nil {
 				log.Printf("failed to send new action to bot: %v\n", err)

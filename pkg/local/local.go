@@ -45,12 +45,12 @@ func (l TextSet) Text(language Language) string {
 }
 
 func (l TextSet) DefaultFormat(a ...any) string {
-	return fmt.Sprintf(l.Default, a)
+	return fmt.Sprintf(l.Default, a...)
 }
 
 func (l TextSet) Format(language Language, a ...any) string {
 	if text, ok := l.translationsText[language]; ok {
-		return fmt.Sprintf(text, a)
+		return fmt.Sprintf(text, a...)
 	}
-	return l.DefaultFormat(a)
+	return l.DefaultFormat(a...)
 }

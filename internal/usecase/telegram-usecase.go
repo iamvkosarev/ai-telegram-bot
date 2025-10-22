@@ -87,8 +87,12 @@ var (
 		local.NewTrans(local.Rus, "Количество доступных чатов: %v."),
 	)
 	MessageUserChatInfoFormat = local.NewSet(
-		"%v) Messages: %v, model: %s, T: %v",
-		local.NewTrans(local.Rus, "%v) Сообщение: %v, модель: %s, T: %v"),
+		"\n%v) Messages: %v, model: %s, T: %v",
+		local.NewTrans(local.Rus, "\n%v) Сообщение: %v, модель: %s, T: %v"),
+	)
+	MessageSelectChatFormat = local.NewSet(
+		"%s | \"%v\" | messages: %v",
+		local.NewTrans(local.Rus, "%s | \"%v\" | сообщений: %v"),
 	)
 )
 
@@ -345,14 +349,15 @@ func (t *TelegramUsecase) handleMessage(update api.Update) error {
 			textSet = MessageCommandHelp
 		case CommandChats:
 			chats, err := t.AIChat.ListUserChats(ctx, user.UserID)
+			fmt.Println("chats", len(chats))
 			if err != nil {
 				t.sendMessageAndHandleErr(chatID, from, MessageFailedToGetChats)
 				return fmt.Errorf("failed to get chats: %w", err)
 			}
-			sendUsersChats(chats, from)
+			t.sendUsersChats(chatID, from, chats)
 			return nil
 		case CommandNew:
-			if err = t.sendSelectModelsKeyboard(user, chatID, nil); err != nil {
+			if err = t.sendSelectModelsKeyboard(user, chatID, from); err != nil {
 				return fmt.Errorf("failed to send select models keyboard: %w", err)
 			}
 			return nil
@@ -458,7 +463,7 @@ func (t *TelegramUsecase) handleMessage(update api.Update) error {
 	return nil
 }
 
-func sendUsersChats(chats []model.AIChat, from *api.User) string {
+func (t *TelegramUsecase) sendUsersChats(chatID int64, from *api.User, chats []model.AIChat) {
 	result := strings.Builder{}
 	result.WriteString(getLocalFormatText(from, MessageYouHaveChatsFormat, len(chats)))
 	for i, chat := range chats {
@@ -468,10 +473,14 @@ func sendUsersChats(chats []model.AIChat, from *api.User) string {
 			),
 		)
 	}
-	return result.String()
+
+	t.sendMessageAndHandleErrNoLocal(chatID, result.String())
 }
 
-func (t *TelegramUsecase) getAIChat(ctx context.Context, user model.User, chatID int64, from *api.User) (model.AIChat, error) {
+func (t *TelegramUsecase) getAIChat(ctx context.Context, user model.User, chatID int64, from *api.User) (
+	model.AIChat,
+	error,
+) {
 	var aiChat model.AIChat
 	var err error
 	if user.LastAIChat != uuid.Nil {
@@ -522,8 +531,14 @@ func (t *TelegramUsecase) sendSelectModelsKeyboard(user model.User, chatID int64
 	return nil
 }
 
-func (t *TelegramUsecase) sendSelectChatKeyboard(ctx context.Context, userID uuid.UUID, chatID int64, from *api.User) error {
+func (t *TelegramUsecase) sendSelectChatKeyboard(
+	ctx context.Context,
+	userID uuid.UUID,
+	chatID int64,
+	from *api.User,
+) error {
 	chats, err := t.AIChat.ListUserChats(ctx, userID)
+	fmt.Println("select chat", len(chats))
 	if err != nil {
 		t.sendMessageAndHandleErr(chatID, from, MessageServerError)
 		return fmt.Errorf("failed to get user chats: %w", err)
@@ -540,9 +555,17 @@ func (t *TelegramUsecase) sendSelectChatKeyboard(ctx context.Context, userID uui
 	for _, chat := range chats {
 		inlineButtons := make([]api.InlineKeyboardButton, 0)
 		messagesCount := len(chat.Messages)
-		lastMessage := chat.Messages[messagesCount-1].Body
-		length := math.Min(float64(maxMessageViewLength), float64(len(lastMessage)))
-		buttonText := fmt.Sprintf("Messages: %v, \"%v...\"", messagesCount, lastMessage[:int(length)])
+		buttonText := ""
+		if messagesCount != 0 {
+			lastMessage := chat.Messages[messagesCount-1].Body
+			length := math.Min(float64(maxMessageViewLength), float64(len([]rune(lastMessage))))
+			buttonText = getLocalFormatText(
+				from, MessageSelectChatFormat, chat.Model, string(([]rune(lastMessage))[:int(length)]),
+				messagesCount,
+			)
+		} else {
+			buttonText = getLocalFormatText(from, MessageSelectChatFormat, chat.Model, "...", 0)
+		}
 
 		chatWithPrefix := fmt.Sprintf("%s%s", CallbackQueryPrefixChat, chat.ChatID.String())
 		inlineButtons = append(inlineButtons, api.NewInlineKeyboardButtonData(buttonText, chatWithPrefix))
@@ -555,7 +578,13 @@ func (t *TelegramUsecase) sendSelectChatKeyboard(ctx context.Context, userID uui
 	return nil
 }
 
-func (t *TelegramUsecase) createNewAIChat(ctx context.Context, user model.User, chatID int64, aiModel string, from *api.User) (model.AIChat, error) {
+func (t *TelegramUsecase) createNewAIChat(
+	ctx context.Context,
+	user model.User,
+	chatID int64,
+	aiModel string,
+	from *api.User,
+) (model.AIChat, error) {
 	aiChat, err := t.AIChat.CreateChat(ctx, user.UserID, aiModel)
 	if err != nil {
 		t.sendMessageAndHandleErr(chatID, from, MessageServerError)
@@ -577,8 +606,24 @@ func (t *TelegramUsecase) sendMessageAndHandleErr(chatID int64, user *api.User, 
 	return msg
 }
 
-func (t *TelegramUsecase) sendFormatMessageAndHandleErr(chatID int64, user *api.User, textSet local.TextSet, a ...any) api.Message {
-	text := getLocalFormatText(user, textSet, a)
+func (t *TelegramUsecase) sendMessageAndHandleErrNoLocal(
+	chatID int64,
+	text string,
+) api.Message {
+	msg, err := t.sendMessage(chatID, text)
+	if err != nil {
+		log.Printf("failed to send new message to bot: %v\n", err)
+	}
+	return msg
+}
+
+func (t *TelegramUsecase) sendFormatMessageAndHandleErr(
+	chatID int64,
+	user *api.User,
+	textSet local.TextSet,
+	a ...any,
+) api.Message {
+	text := getLocalFormatText(user, textSet, a...)
 	msg, err := t.sendMessage(chatID, text)
 	if err != nil {
 		log.Printf("failed to send new message to bot: %v\n", err)
@@ -588,6 +633,9 @@ func (t *TelegramUsecase) sendFormatMessageAndHandleErr(chatID int64, user *api.
 
 func getLocalText(user *api.User, textSet local.TextSet) string {
 	text := textSet.Default
+	if user == nil {
+		return text
+	}
 	switch user.LanguageCode {
 	case "ru":
 		text = textSet.Text(local.Rus)
@@ -597,10 +645,10 @@ func getLocalText(user *api.User, textSet local.TextSet) string {
 }
 
 func getLocalFormatText(user *api.User, textSet local.TextSet, a ...any) string {
-	text := textSet.DefaultFormat(a)
+	text := textSet.DefaultFormat(a...)
 	switch user.LanguageCode {
 	case "ru":
-		text = textSet.Format(local.Rus, a)
+		text = textSet.Format(local.Rus, a...)
 	}
 
 	return text

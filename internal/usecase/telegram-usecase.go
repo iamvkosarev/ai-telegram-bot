@@ -133,15 +133,13 @@ func (t *TelegramUsecase) Run() error {
 	updates := t.Bot.GetUpdatesChan(u)
 
 	for update := range updates {
-		ctx, cancel := context.WithTimeout(context.Background(), HandleUpdateContextTimeout)
-		defer cancel()
 		if update.Message != nil {
-			if err := t.handleMessage(ctx, update); err != nil {
+			if err := t.handleMessage(update); err != nil {
 				fmt.Printf("error handling message: %v\n", err.Error())
 			}
 		}
 		if update.CallbackQuery != nil {
-			if err := t.handleCallbackQuery(ctx, update); err != nil {
+			if err := t.handleCallbackQuery(update); err != nil {
 				fmt.Printf("error handling callback Query: %v\n", err.Error())
 			}
 		}
@@ -149,7 +147,10 @@ func (t *TelegramUsecase) Run() error {
 	return nil
 }
 
-func (t *TelegramUsecase) handleCallbackQuery(ctx context.Context, update api.Update) error {
+func (t *TelegramUsecase) handleCallbackQuery(update api.Update) error {
+	ctx, cancel := context.WithTimeout(context.Background(), HandleUpdateContextTimeout)
+	defer cancel()
+
 	data := update.CallbackQuery.Data
 
 	switch {
@@ -253,7 +254,10 @@ func (t *TelegramUsecase) handleCallbackSelectChat(ctx context.Context, update a
 	return nil
 }
 
-func (t *TelegramUsecase) handleMessage(ctx context.Context, update api.Update) error {
+func (t *TelegramUsecase) handleMessage(update api.Update) error {
+	ctx, cancel := context.WithTimeout(context.Background(), HandleUpdateContextTimeout)
+	defer cancel()
+
 	chatID := update.Message.Chat.ID
 
 	if t.cfg.IsNotPublic {

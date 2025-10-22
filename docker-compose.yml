@@ -1,12 +1,12 @@
 services:
   redis:
     image: redis:7.4-alpine
-    container_name: redis
+    container_name: telegram-bot-redis
     command: ["redis-server","--appendonly","yes"]
     ports:
-      - "127.0.0.1:6379:6379"
+      - "127.0.0.1:6380:6379"
     networks:
-      - net
+      - ai-telegram-bot-net
     restart: unless-stopped
     volumes:
       - redis-data:/data
@@ -35,11 +35,10 @@ services:
       redis:
         condition: service_started
     networks:
-      - net
-    restart: unless-stopped
+      - ai-telegram-bot-net
 
 volumes:
   redis-data:
 
 networks:
-  net:
+  ai-telegram-bot-net:

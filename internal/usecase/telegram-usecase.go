@@ -438,7 +438,7 @@ func (t *TelegramUsecase) sendSelectModelsKeyboard(user model.User, chatID int64
 	sort.Strings(aiModels)
 
 	msg := api.NewMessage(chatID, MessageSelectModel)
-	const maxButtonsInRow = 3
+	const maxButtonsInRow = 2
 	inlineRows := make([][]api.InlineKeyboardButton, 0)
 	inlineButtons := make([]api.InlineKeyboardButton, 0)
 	for _, aiModel := range aiModels {

@@ -349,7 +349,6 @@ func (t *TelegramUsecase) handleMessage(update api.Update) error {
 			textSet = MessageCommandHelp
 		case CommandChats:
 			chats, err := t.AIChat.ListUserChats(ctx, user.UserID)
-			fmt.Println("chats", len(chats))
 			if err != nil {
 				t.sendMessageAndHandleErr(chatID, from, MessageFailedToGetChats)
 				return fmt.Errorf("failed to get chats: %w", err)
@@ -437,6 +436,8 @@ func (t *TelegramUsecase) handleMessage(update api.Update) error {
 				if len(currentAnswer) == 0 {
 					continue
 				}
+				currentAnswer = strings.ReplaceAll(currentAnswer, "**", "*")
+				currentAnswer = strings.ReplaceAll(currentAnswer, "__", "_")
 				if answerMsgID == 0 {
 					var answerMsg api.Message
 					if answerMsg, err = t.sendMessage(chatID, currentAnswer); err != nil {
@@ -511,6 +512,7 @@ func (t *TelegramUsecase) sendSelectModelsKeyboard(user model.User, chatID int64
 	sort.Strings(aiModels)
 
 	msg := api.NewMessage(chatID, getLocalText(from, MessageSelectModel))
+	msg.ParseMode = api.ModeMarkdown
 	const maxButtonsInRow = 2
 	inlineRows := make([][]api.InlineKeyboardButton, 0)
 	inlineButtons := make([]api.InlineKeyboardButton, 0)
@@ -538,7 +540,6 @@ func (t *TelegramUsecase) sendSelectChatKeyboard(
 	from *api.User,
 ) error {
 	chats, err := t.AIChat.ListUserChats(ctx, userID)
-	fmt.Println("select chat", len(chats))
 	if err != nil {
 		t.sendMessageAndHandleErr(chatID, from, MessageServerError)
 		return fmt.Errorf("failed to get user chats: %w", err)
@@ -548,6 +549,7 @@ func (t *TelegramUsecase) sendSelectChatKeyboard(
 		return nil
 	}
 	msg := api.NewMessage(chatID, getLocalText(from, MessageSelectChat))
+	msg.ParseMode = api.ModeMarkdown
 	inlineRows := make([][]api.InlineKeyboardButton, 0)
 
 	const maxMessageViewLength = 20
@@ -655,11 +657,15 @@ func getLocalFormatText(user *api.User, textSet local.TextSet, a ...any) string 
 }
 
 func (t *TelegramUsecase) sendMessage(chatID int64, message string) (api.Message, error) {
-	return t.sendToBot(api.NewMessage(chatID, message))
+	msg := api.NewMessage(chatID, message)
+	msg.ParseMode = api.ModeMarkdown
+	return t.sendToBot(msg)
 }
 
 func (t *TelegramUsecase) sendEditMessage(chatID int64, previousMsgID int, message string) (api.Message, error) {
-	return t.sendToBot(api.NewEditMessageText(chatID, previousMsgID, message))
+	editMsg := api.NewEditMessageText(chatID, previousMsgID, message)
+	editMsg.ParseMode = api.ModeMarkdown
+	return t.sendToBot(editMsg)
 }
 
 func (t *TelegramUsecase) sendToBot(c api.Chattable) (api.Message, error) {

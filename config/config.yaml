@@ -7,11 +7,10 @@ telegram:
   notify_user_on_conversation_idle_timeout: false
   is_not_public: true
   available_for_roles: [ "admin", "premium" ]
-ai_chat:
-  models_per_user_roles:
-    - role: "admin"
-      models: [ "gpt-3.5-turbo", "gpt-4.1", "gpt-4.1-mini", "gpt-4.1-nano", "gpt-4o", "gpt-4o-mini" ]
-    - role: "premium"
-      models: [ "gpt-3.5-turbo", "gpt-4.1", "gpt-4.1-mini", "gpt-4.1-nano", "gpt-4o", "gpt-4o-mini" ]
-    - role: "default"
-      models: [ "gpt-3.5-turbo" ]
+roles:
+  - role: "admin"
+    models: [ "gpt-3.5-turbo", "gpt-4.1", "gpt-4.1-mini", "gpt-4.1-nano", "gpt-4o", "gpt-4o-mini" ]
+  - role: "premium"
+    models: [ "gpt-3.5-turbo", "gpt-4.1", "gpt-4.1-mini", "gpt-4.1-nano", "gpt-4o", "gpt-4o-mini" ]
+  - role: "default"
+    models: [ "gpt-3.5-turbo" ]

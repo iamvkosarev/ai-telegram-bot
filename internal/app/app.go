@@ -47,7 +47,7 @@ func Run(cfg *config.Config) error {
 		usecase.AiChatUsecaseDeps{
 			AiChatStorage: aiChatStorage,
 			User:          userUsecase,
-		}, cfg.AIChat,
+		}, cfg.Roles,
 	)
 
 	telegramUsecase, err := usecase.NewTelegramUsecase(

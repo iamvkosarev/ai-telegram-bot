@@ -84,7 +84,7 @@ func (gpt *OpenAIUsecase) SendMessage(msg string, chat model.AIChat, answerChan 
 		Temperature: chat.ModelTemperature,
 		TopP:        1,
 		N:           1,
-		// TODO: add to config or AIChat
+		// TODO: add to config or Roles
 		// PresencePenalty:  0.2,
 		// FrequencyPenalty: 0.2,
 		Messages: messageHistory,

@@ -51,7 +51,11 @@ func (a *AIChatStorage) GetChat(chatID uuid.UUID) (model.AIChat, error) {
 	return *chat, nil
 }
 
-func (a *AIChatStorage) AddMessageToChat(chatID uuid.UUID, messageText string, messageSource model.MessageSource) error {
+func (a *AIChatStorage) AddMessageToChat(
+	chatID uuid.UUID,
+	messageText string,
+	messageSource model.MessageSource,
+) error {
 	chat, ok := a.chats[chatID]
 	if !ok {
 		return ErrChatDoesNotExist

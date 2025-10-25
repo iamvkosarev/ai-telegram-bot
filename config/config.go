@@ -5,7 +5,7 @@ import (
 	"time"
 )
 
-type AccessModelsPerRole struct {
+type Role struct {
 	Role   string   `yaml:"role"`
 	Models []string `yaml:"models"`
 }
@@ -15,10 +15,6 @@ type OpenAI struct {
 	OpenAIBaseURL           string        `yaml:"open_ai_base_url" env:"OPENAI_BASE_URL"`
 	ConversationIdleTimeout time.Duration `yaml:"conversation_idle_timeout_seconds"`
 	StdModel                string        `env:"OPENAI_STD_MODEL" envDefault:"gpt-3.5-turbo"`
-}
-
-type AIChat struct {
-	AccessModelsPerRoles []AccessModelsPerRole `yaml:"models_per_user_roles"`
 }
 
 type Telegram struct {
@@ -37,7 +33,7 @@ type Redis struct {
 type Config struct {
 	OpenAI   OpenAI   `yaml:"open_ai"`
 	Telegram Telegram `yaml:"telegram"`
-	AIChat   AIChat   `yaml:"ai_chat"`
+	Roles    []Role   `yaml:"roles"`
 	Redis    Redis    `yaml:"redis"`
 }
 

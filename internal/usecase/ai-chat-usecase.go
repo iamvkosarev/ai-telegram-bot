@@ -31,18 +31,16 @@ type AiChatUsecaseDeps struct {
 
 type AiChatUsecase struct {
 	AiChatUsecaseDeps
-	cfg                  config.AIChat
 	userRoleToChatModels map[model.UserRole][]string
 }
 
-func NewAiChatUsecase(deps AiChatUsecaseDeps, cfg config.AIChat) *AiChatUsecase {
+func NewAiChatUsecase(deps AiChatUsecaseDeps, roles []config.Role) *AiChatUsecase {
 	userRoleToChatModels := make(map[model.UserRole][]string)
-	for _, roleToModels := range cfg.AccessModelsPerRoles {
+	for _, roleToModels := range roles {
 		userRoleToChatModels[model.ParseUserRole(roleToModels.Role)] = roleToModels.Models
 	}
 	return &AiChatUsecase{
 		AiChatUsecaseDeps:    deps,
-		cfg:                  cfg,
 		userRoleToChatModels: userRoleToChatModels,
 	}
 }

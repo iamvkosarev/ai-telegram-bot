@@ -6,7 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/google/uuid"
-	"github.com/iamvkosarev/chatgpt-telegram-bot/internal/model"
+	"github.com/iamvkosarev/ai-telegram-bot/internal/model"
 	"github.com/redis/go-redis/v9"
 )
 

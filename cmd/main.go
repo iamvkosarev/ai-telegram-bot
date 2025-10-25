@@ -2,8 +2,8 @@ package main
 
 import (
 	"flag"
-	"github.com/iamvkosarev/chatgpt-telegram-bot/config"
-	"github.com/iamvkosarev/chatgpt-telegram-bot/internal/app"
+	"github.com/iamvkosarev/ai-telegram-bot/config"
+	"github.com/iamvkosarev/ai-telegram-bot/internal/app"
 	"github.com/joho/godotenv"
 	"log"
 )

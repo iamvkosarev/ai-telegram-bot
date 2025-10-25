@@ -1,4 +1,4 @@
-module github.com/iamvkosarev/chatgpt-telegram-bot
+module github.com/iamvkosarev/ai-telegram-bot
 
 go 1.24
 

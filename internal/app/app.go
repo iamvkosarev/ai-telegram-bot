@@ -3,9 +3,9 @@ package app
 import (
 	"fmt"
 	api "github.com/OvyFlash/telegram-bot-api"
-	"github.com/iamvkosarev/chatgpt-telegram-bot/config"
-	key_value "github.com/iamvkosarev/chatgpt-telegram-bot/internal/storage/key-value"
-	"github.com/iamvkosarev/chatgpt-telegram-bot/internal/usecase"
+	"github.com/iamvkosarev/ai-telegram-bot/config"
+	key_value "github.com/iamvkosarev/ai-telegram-bot/internal/storage/key-value"
+	"github.com/iamvkosarev/ai-telegram-bot/internal/usecase"
 	"github.com/redis/go-redis/v9"
 	"log"
 	"net/url"
